@@ -1,0 +1,11 @@
+# Production: connects to an existing Postgres server via DATABASE_URL in .env.
+services:
+  app:
+    build: .
+    image: flight-tracker:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data

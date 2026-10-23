@@ -12,6 +12,11 @@ const ConfigSchema = z.object({
   LLM_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   LLM_MODEL: z.preprocess(emptyToUndefined, z.string().optional()),
   LLM_VISION_MODEL: z.preprocess(emptyToUndefined, z.string().optional()),
+  FLIGHT_FINDER_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  FLIGHT_FINDER_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
+  PRICE_SYNC_MINUTES: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0).default(60)),
+  ALERT_WEBHOOK_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  ALERT_WEBHOOK_FORMAT: z.preprocess(emptyToUndefined, z.enum(["ntfy", "json"]).default("ntfy")),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

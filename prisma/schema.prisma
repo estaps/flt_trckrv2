@@ -184,6 +184,7 @@ model Flight {
   booking Booking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   trip    Trip?          @relation(fields: [tripId], references: [id], onDelete: SetNull)
   changes FlightChange[]
+  watches PriceWatch[]
 
   @@unique([carrier, flightNumber, depDate])
   @@index([tripId])
@@ -251,4 +252,103 @@ model Airport {
   tz      String?
 
   @@map("airports")
+}
+
+enum PriceWatchStatus {
+  active
+  paused
+  expired
+  error
+}
+
+enum PriceAlertKind {
+  drop
+  target
+  below_paid
+}
+
+// A route and date (or a booked flight) whose fares are checked through the
+// flight-finder sidecar. Each check that returns fares adds one PricePoint.
+model PriceWatch {
+  id            String           @id @default(uuid()) @db.Uuid
+  label         String?
+  origin        String           @db.Char(3)
+  destination   String           @db.Char(3)
+  departDate    DateTime         @map("depart_date") @db.Date
+  // Set for round trips; fares are then the round-trip total.
+  returnDate    DateTime?        @map("return_date") @db.Date
+  cabin         String           @default("economy")
+  // Airline name as fare sites print it, e.g. "Delta". Empty means any airline.
+  airline       String?
+  // e.g. "DL1234". When set, only that flight's fare counts.
+  flightNumber  String?          @map("flight_number")
+  // Local departure time "HH:MM", used to find the flight when fares lack a flight number.
+  departTime    String?          @map("depart_time") @db.VarChar(5)
+  maxStops      Int?             @map("max_stops")
+  flightId      String?          @map("flight_id") @db.Uuid
+  paidPrice     Decimal?         @map("paid_price") @db.Decimal(12, 2)
+  currency      String           @default("USD") @db.Char(3)
+  targetPrice   Decimal?         @map("target_price") @db.Decimal(12, 2)
+  dropAmount    Decimal?         @map("drop_amount") @db.Decimal(12, 2)
+  // Fraction, 0.1 means 10%.
+  dropPercent   Float?           @map("drop_percent")
+  // Price that drops are measured from: the high since the last drop alert.
+  dropBaseline  Decimal?         @map("drop_baseline") @db.Decimal(12, 2)
+  status        PriceWatchStatus @default(active)
+  remoteQueryId String?          @unique @map("remote_query_id")
+  remoteToken   String?          @map("remote_token")
+  // Newest fare timestamp already read from the sidecar.
+  syncedThrough DateTime?        @map("synced_through")
+  lastCheckedAt DateTime?        @map("last_checked_at")
+  lastError     String?          @map("last_error")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  flight Flight?      @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  points PricePoint[]
+  alerts PriceAlert[]
+
+  @@index([status])
+  @@map("price_watches")
+}
+
+// The cheapest matching fare from one sidecar check.
+model PricePoint {
+  id           String   @id @default(uuid()) @db.Uuid
+  watchId      String   @map("watch_id") @db.Uuid
+  observedAt   DateTime @map("observed_at")
+  price        Decimal  @db.Decimal(12, 2)
+  currency     String   @db.Char(3)
+  airline      String?
+  flightNumber String?  @map("flight_number")
+  departTime   String?  @map("depart_time")
+  stops        Int?
+  bookingUrl   String?  @map("booking_url")
+  // "flight" when the watched flight itself was found, "airline" when only the
+  // airline's cheapest fare was available, "route" for any airline.
+  matchedBy    String   @map("matched_by")
+  fareCount    Int      @map("fare_count")
+
+  watch PriceWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  @@unique([watchId, observedAt])
+  @@map("price_points")
+}
+
+model PriceAlert {
+  id            String         @id @default(uuid()) @db.Uuid
+  watchId       String         @map("watch_id") @db.Uuid
+  kind          PriceAlertKind
+  price         Decimal        @db.Decimal(12, 2)
+  previousPrice Decimal?       @map("previous_price") @db.Decimal(12, 2)
+  currency      String         @db.Char(3)
+  message       String
+  notifiedAt    DateTime?      @map("notified_at")
+  readAt        DateTime?      @map("read_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  watch PriceWatch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  @@index([watchId])
+  @@map("price_alerts")
 }

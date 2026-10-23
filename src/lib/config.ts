@@ -12,6 +12,16 @@ const ConfigSchema = z.object({
   LLM_API_KEY: z.preprocess(emptyToUndefined, z.string().optional()),
   LLM_MODEL: z.preprocess(emptyToUndefined, z.string().optional()),
   LLM_VISION_MODEL: z.preprocess(emptyToUndefined, z.string().optional()),
+  IMAP_HOST: z.preprocess(emptyToUndefined, z.string().optional()),
+  IMAP_PORT: z.coerce.number().int().positive().default(993),
+  // true = TLS from the start (port 993); false = plain connection upgraded with STARTTLS (Proton Bridge).
+  IMAP_SECURE: z.preprocess((v) => (v === "" || v === undefined ? undefined : v === "true"), z.boolean().default(true)),
+  // Accept a self-signed certificate, as Proton Bridge uses. Only for a server on your own network.
+  IMAP_TLS_INSECURE: z.preprocess((v) => v === "true", z.boolean()).default(false),
+  IMAP_USER: z.preprocess(emptyToUndefined, z.string().optional()),
+  IMAP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
+  IMAP_MAILBOX: z.string().default("INBOX"),
+  IMAP_POLL_SECONDS: z.coerce.number().int().positive().default(300),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

@@ -1,0 +1,25 @@
+# Adds Proton Mail Bridge so the worker can read a Proton mailbox over IMAP.
+#   docker compose -f docker-compose.yml -f docker-compose.proton.yml run --rm protonmail-bridge init
+#     (in the Bridge shell: `login`, then `info` to see the IMAP username and password; then `exit`)
+#   docker compose -f docker-compose.yml -f docker-compose.proton.yml up -d
+# Bridge needs a paid Proton plan. The image is the community-maintained shenxn/protonmail-bridge.
+services:
+  protonmail-bridge:
+    image: shenxn/protonmail-bridge:latest
+    restart: unless-stopped
+    volumes:
+      - protonmail:/root
+
+  worker:
+    environment:
+      SKIP_MIGRATIONS: "true"
+      IMAP_HOST: protonmail-bridge
+      IMAP_PORT: "143"
+      # Bridge serves IMAP with STARTTLS and a self-signed certificate, on the private compose network.
+      IMAP_SECURE: "false"
+      IMAP_TLS_INSECURE: "true"
+    depends_on:
+      - protonmail-bridge
+
+volumes:
+  protonmail:

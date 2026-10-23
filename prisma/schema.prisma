@@ -79,6 +79,7 @@ model Document {
   expenses    Expense[]
   changes     FlightChange[]
   ecredits    ECredit[]
+  photos      TripPhoto[]
 
   @@map("documents")
 }
@@ -111,6 +112,7 @@ model Trip {
   bookings Booking[]
   flights  Flight[]
   expenses Expense[]
+  photos   TripPhoto[]
 
   @@map("trips")
 }
@@ -184,6 +186,7 @@ model Flight {
   booking Booking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   trip    Trip?          @relation(fields: [tripId], references: [id], onDelete: SetNull)
   changes FlightChange[]
+  photos  TripPhoto[]
 
   @@unique([carrier, flightNumber, depDate])
   @@index([tripId])
@@ -207,18 +210,24 @@ model FlightChange {
   @@map("flight_changes")
 }
 
+// Money spent on a trip. The document, when there is one, is the receipt.
 model Expense {
   id         String   @id @default(uuid()) @db.Uuid
   tripId     String?  @map("trip_id") @db.Uuid
   bookingId  String?  @map("booking_id") @db.Uuid
   category   String
   merchant   String?
+  notes      String?
   amount     Decimal  @db.Decimal(12, 2)
   currency   String   @db.Char(3)
+  // Amount in HOME_CURRENCY, and the rate used: home units per one unit of currency.
   amountHome Decimal? @map("amount_home") @db.Decimal(12, 2)
+  fxRate     Decimal? @map("fx_rate") @db.Decimal(18, 8)
+  fxSource   String?  @map("fx_source") // "same", "ecb" or "manual"
   spentOn    DateTime @map("spent_on") @db.Date
   documentId String?  @map("document_id") @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
   trip     Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
   booking  Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
@@ -240,6 +249,44 @@ model Attachment {
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("attachments")
+}
+
+// A photo kept with a trip: a ticket, boarding pass, receipt or anything else worth keeping.
+// Stored under FILES_DIR/photos; documentId is set once the photo is sent through the parser.
+model TripPhoto {
+  id            String         @id @default(uuid()) @db.Uuid
+  tripId        String?        @map("trip_id") @db.Uuid
+  flightId      String?        @map("flight_id") @db.Uuid
+  kind          AttachmentKind @default(ticket)
+  caption       String?
+  filename      String?
+  mimeType      String         @map("mime_type")
+  sha256        String
+  storagePath   String         @map("storage_path")
+  thumbnailPath String?        @map("thumbnail_path")
+  width         Int?
+  height        Int?
+  documentId    String?        @map("document_id") @db.Uuid
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  trip     Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  flight   Flight?   @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, sha256])
+  @@index([tripId])
+  @@map("trip_photos")
+}
+
+// Daily exchange rates, cached so each currency and day is fetched once.
+model FxRate {
+  day   DateTime @db.Date
+  base  String   @db.Char(3)
+  quote String   @db.Char(3)
+  rate  Decimal  @db.Decimal(18, 8)
+
+  @@id([day, base, quote])
+  @@map("fx_rates")
 }
 
 model Airport {

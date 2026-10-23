@@ -26,8 +26,18 @@ export const ParsedECredit = z.object({
 });
 export type ParsedECredit = z.infer<typeof ParsedECredit>;
 
+// A non-flight receipt: hotel, taxi, meal and so on.
+export const ParsedExpense = z.object({
+  category: z.string().optional(),
+  merchant: z.string().optional(),
+  total: z.number(),
+  currency: z.string().length(3),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+export type ParsedExpense = z.infer<typeof ParsedExpense>;
+
 export const ParsedDocument = z.object({
-  kind: z.enum(["itinerary", "ticket_receipt", "cancellation", "unknown"]),
+  kind: z.enum(["itinerary", "ticket_receipt", "cancellation", "expense_receipt", "unknown"]),
   template: z.string(), // which parser produced it, e.g. "delta_email_receipt" or "llm"
   airline: z.string().optional(),
   sentAt: z.string().optional(),
@@ -49,6 +59,7 @@ export const ParsedDocument = z.object({
   ecreditsApplied: z.array(ParsedECredit).default([]),
   ecreditsIssued: z.array(ParsedECredit).default([]),
   cancelledTicketNumbers: z.array(z.string()).default([]),
+  expense: ParsedExpense.optional(),
   warnings: z.array(z.string()).default([]),
 });
 export type ParsedDocument = z.infer<typeof ParsedDocument>;

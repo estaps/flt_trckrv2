@@ -37,3 +37,52 @@ export const FlightInput = FlightFields.refine((f) => f.depDate || f.depTimeUtc,
 }).transform((f) => ({ ...f, depDate: f.depDate ?? new Date(f.depTimeUtc!.toISOString().slice(0, 10)) }));
 
 export const FlightPatch = FlightFields.partial();
+
+// Expense categories, in the order the form lists them.
+export const EXPENSE_CATEGORIES = {
+  airfare: "Airfare",
+  lodging: "Lodging",
+  ground: "Taxi, rideshare and transit",
+  car_rental: "Car rental",
+  meals: "Meals",
+  baggage: "Bags and seats",
+  parking: "Parking",
+  fuel: "Fuel",
+  connectivity: "Wi-Fi and phone",
+  fees: "Visas and fees",
+  other: "Other",
+} as const;
+export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
+const categoryKeys = Object.keys(EXPENSE_CATEGORIES) as [ExpenseCategory, ...ExpenseCategory[]];
+
+const optionalText = z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().trim().optional());
+const optionalNumber = z.preprocess((v) => (v === "" || v === null ? undefined : v), z.coerce.number().finite().optional());
+
+export const ExpenseFields = z.object({
+  tripId: z.string().uuid().optional(),
+  category: z.enum(categoryKeys),
+  merchant: optionalText,
+  notes: optionalText,
+  // Negative for refunds.
+  amount: z.coerce.number().finite().refine((n) => n !== 0, "amount cannot be zero"),
+  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "expected a currency code like USD or EUR"),
+  spentOn: isoDate,
+  // What the card was actually charged in the home currency; overrides the looked-up rate.
+  amountHome: optionalNumber,
+  documentId: z.string().uuid().optional(),
+});
+export const ExpenseInput = ExpenseFields;
+export const ExpensePatch = ExpenseFields.partial().extend({
+  tripId: z.string().uuid().nullable().optional(),
+  merchant: z.string().trim().nullable().optional(),
+  notes: z.string().trim().nullable().optional(),
+});
+export type ExpenseInput = z.infer<typeof ExpenseInput>;
+export type ExpensePatch = z.infer<typeof ExpensePatch>;
+
+export const PHOTO_KINDS = { ticket: "Ticket", boarding_pass: "Boarding pass", receipt: "Receipt", other: "Other" } as const;
+export const PhotoPatch = z.object({
+  kind: z.enum(["ticket", "boarding_pass", "receipt", "other"]).optional(),
+  caption: optionalText,
+  flightId: z.string().uuid().nullable().optional(),
+});

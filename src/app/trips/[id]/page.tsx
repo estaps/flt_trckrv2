@@ -3,7 +3,9 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { FlightInput } from "@/lib/schemas";
-import { money, ymd } from "@/lib/ui/format";
+import { ymd } from "@/lib/ui/format";
+import { ExpensesSection } from "./expenses";
+import { PhotosSection } from "./photos";
 
 export const dynamic = "force-dynamic";
 
@@ -24,21 +26,27 @@ async function addFlight(formData: FormData) {
   revalidatePath(`/trips/${tripId}`);
 }
 
-export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TripPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { id } = await params;
+  const { error } = await searchParams;
   const trip = await prisma.trip
     .findUnique({
       where: { id },
       include: {
         flights: { orderBy: [{ depDate: "asc" }, { depTimeLocal: "asc" }], include: { booking: true } },
-        expenses: { orderBy: { spentOn: "asc" } },
+        expenses: { orderBy: [{ spentOn: "asc" }, { createdAt: "asc" }] },
+        photos: { orderBy: { createdAt: "asc" } },
       },
     })
     .catch(() => null);
   if (!trip) notFound();
   const home = getConfig().HOME_CURRENCY;
-  const total = trip.expenses.reduce((sum, e) => sum + Number(e.amountHome ?? 0), 0);
-  const unconverted = trip.expenses.filter((e) => e.amountHome === null).length;
 
   return (
     <>
@@ -68,30 +76,8 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           </table>
         )}
       </section>
-      <section className="card">
-        <h3>Expenses</h3>
-        {trip.expenses.length === 0 ? (
-          <p className="muted">No expenses yet.</p>
-        ) : (
-          <table>
-            <thead><tr><th>Date</th><th>Category</th><th>Merchant</th><th>Amount</th></tr></thead>
-            <tbody>
-              {trip.expenses.map((e) => (
-                <tr key={e.id}>
-                  <td>{ymd(e.spentOn)}</td>
-                  <td>{e.category}</td>
-                  <td>{e.merchant ?? ""}</td>
-                  <td>{money(e.amount, e.currency)}</td>
-                </tr>
-              ))}
-              <tr>
-                <td colSpan={3}><strong>Total ({home})</strong>{unconverted ? <span className="muted"> · {unconverted} in other currencies not included</span> : null}</td>
-                <td><strong>{money(total, home)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        )}
-      </section>
+      <ExpensesSection tripId={trip.id} expenses={trip.expenses} home={home} defaultDate={ymd(trip.startDate)} />
+      <PhotosSection tripId={trip.id} photos={trip.photos} flights={trip.flights} error={error} />
       <section className="card">
         <h3>Add a flight</h3>
         <form action={addFlight} className="inline">

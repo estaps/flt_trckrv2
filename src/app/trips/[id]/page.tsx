@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
+import { getConfig } from "@/lib/config";
 import { FlightInput } from "@/lib/schemas";
+import { money, ymd } from "@/lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
@@ -14,43 +16,78 @@ async function addFlight(formData: FormData) {
     flightNumber: formData.get("flightNumber"),
     depAirport: formData.get("depAirport"),
     arrAirport: formData.get("arrAirport"),
-    // datetime-local has no zone; the field is labeled UTC.
-    depTimeUtc: `${formData.get("depTimeUtc")}Z`,
+    depDate: formData.get("depDate"),
+    depTimeLocal: formData.get("depTimeLocal") || undefined,
     seat: formData.get("seat") || undefined,
   });
   await prisma.flight.create({ data: input });
   revalidatePath(`/trips/${tripId}`);
 }
 
-const when = (d: Date) => d.toISOString().slice(0, 16).replace("T", " ") + " UTC";
-
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const trip = await prisma.trip
-    .findUnique({ where: { id }, include: { flights: { orderBy: { depTimeUtc: "asc" } } } })
+    .findUnique({
+      where: { id },
+      include: {
+        flights: { orderBy: [{ depDate: "asc" }, { depTimeLocal: "asc" }], include: { booking: true } },
+        expenses: { orderBy: { spentOn: "asc" } },
+      },
+    })
     .catch(() => null);
   if (!trip) notFound();
+  const home = getConfig().HOME_CURRENCY;
+  const total = trip.expenses.reduce((sum, e) => sum + Number(e.amountHome ?? 0), 0);
+  const unconverted = trip.expenses.filter((e) => e.amountHome === null).length;
 
   return (
     <>
       <p><a href="/">All trips</a></p>
       <section className="card">
         <h2>{trip.name}</h2>
+        <p className="muted">{ymd(trip.startDate)}{trip.endDate ? ` to ${ymd(trip.endDate)}` : ""}</p>
         {trip.flights.length === 0 ? (
           <p className="muted">No flights yet.</p>
         ) : (
           <table>
-            <thead><tr><th>Flight</th><th>Route</th><th>Departs</th><th>Seat</th><th>Status</th></tr></thead>
+            <thead><tr><th>Date</th><th>Flight</th><th>Route</th><th>Departs</th><th>Arrives</th><th>Seat</th><th>Booking</th><th>Status</th></tr></thead>
             <tbody>
               {trip.flights.map((f) => (
                 <tr key={f.id}>
+                  <td>{ymd(f.depDate)}</td>
                   <td>{f.carrier} {f.flightNumber}</td>
                   <td>{f.depAirport} to {f.arrAirport}</td>
-                  <td>{when(f.depTimeUtc)}</td>
+                  <td>{f.depTimeLocal ?? ""}</td>
+                  <td>{f.arrTimeLocal ?? ""}</td>
                   <td>{f.seat ?? ""}</td>
+                  <td>{f.booking ? `${f.booking.confirmationCode}${f.booking.status !== "ticketed" ? ` (${f.booking.status})` : ""}` : ""}</td>
                   <td>{f.status}</td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+      <section className="card">
+        <h3>Expenses</h3>
+        {trip.expenses.length === 0 ? (
+          <p className="muted">No expenses yet.</p>
+        ) : (
+          <table>
+            <thead><tr><th>Date</th><th>Category</th><th>Merchant</th><th>Amount</th></tr></thead>
+            <tbody>
+              {trip.expenses.map((e) => (
+                <tr key={e.id}>
+                  <td>{ymd(e.spentOn)}</td>
+                  <td>{e.category}</td>
+                  <td>{e.merchant ?? ""}</td>
+                  <td>{money(e.amount, e.currency)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={3}><strong>Total ({home})</strong>{unconverted ? <span className="muted"> · {unconverted} in other currencies not included</span> : null}</td>
+                <td><strong>{money(total, home)}</strong></td>
+              </tr>
             </tbody>
           </table>
         )}
@@ -63,7 +100,8 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           <label>Number<input name="flightNumber" size={5} required /></label>
           <label>From<input name="depAirport" size={4} required /></label>
           <label>To<input name="arrAirport" size={4} required /></label>
-          <label>Departs (UTC)<input name="depTimeUtc" type="datetime-local" required /></label>
+          <label>Date<input name="depDate" type="date" required /></label>
+          <label>Departs (local)<input name="depTimeLocal" type="time" /></label>
           <label>Seat<input name="seat" size={4} /></label>
           <button type="submit">Add flight</button>
         </form>

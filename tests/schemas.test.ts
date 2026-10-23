@@ -12,7 +12,7 @@ describe("FlightInput", () => {
     });
     expect(f.carrier).toBe("DL");
     expect(f.depAirport).toBe("ATL");
-    expect(f.depTimeUtc.toISOString()).toBe("2026-11-01T14:00:00.000Z");
+    expect(f.depTimeUtc!.toISOString()).toBe("2026-11-01T14:00:00.000Z");
   });
 
   it("rejects a bad airport code", () => {

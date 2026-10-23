@@ -22,10 +22,12 @@ enum DocumentStatus {
   parsed
   needs_review
   confirmed
+  ignored
   failed
 }
 
 enum ExtractionMethod {
+  template
   barcode
   schema_org
   llm
@@ -38,6 +40,17 @@ enum FlightStatus {
   changed
   cancelled
   flown
+}
+
+enum BookingStatus {
+  held
+  ticketed
+  cancelled
+}
+
+enum ECreditStatus {
+  active
+  used
 }
 
 enum AttachmentKind {
@@ -65,6 +78,7 @@ model Document {
   bookings    Booking[]
   expenses    Expense[]
   changes     FlightChange[]
+  ecredits    ECredit[]
 
   @@map("documents")
 }
@@ -103,25 +117,50 @@ model Trip {
 
 // One reservation, identified by its confirmation code (PNR).
 model Booking {
-  id               String    @id @default(uuid()) @db.Uuid
-  tripId           String?   @map("trip_id") @db.Uuid
-  confirmationCode String    @map("confirmation_code")
-  airlineOrAgency  String?   @map("airline_or_agency")
-  bookedAt         DateTime? @map("booked_at")
-  totalAmount      Decimal?  @map("total_amount") @db.Decimal(12, 2)
-  currency         String?   @db.Char(3)
-  documentId       String?   @map("document_id") @db.Uuid
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id               String        @id @default(uuid()) @db.Uuid
+  tripId           String?       @map("trip_id") @db.Uuid
+  confirmationCode String        @unique @map("confirmation_code")
+  ticketNumber     String?       @unique @map("ticket_number")
+  status           BookingStatus @default(ticketed)
+  airlineOrAgency  String?       @map("airline_or_agency")
+  passengerName    String?       @map("passenger_name")
+  bookedAt         DateTime?     @map("booked_at")
+  totalAmount      Decimal?      @map("total_amount") @db.Decimal(12, 2)
+  currency         String?       @db.Char(3)
+  documentId       String?       @map("document_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at")
 
   trip     Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
   document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
   flights  Flight[]
+  expenses Expense[]
 
-  @@index([confirmationCode])
   @@map("bookings")
 }
 
-// One flight segment.
+// Airline travel credit, e.g. a Delta eCredit left over from a cancelled or changed ticket.
+model ECredit {
+  id                 String        @id @default(uuid()) @db.Uuid
+  number             String        @unique
+  airline            String?
+  // Unknown until a receipt shows it; a cancellation email only gives the number.
+  amount             Decimal?      @db.Decimal(12, 2)
+  currency           String?       @db.Char(3)
+  expiresOn          DateTime?     @map("expires_on") @db.Date
+  status             ECreditStatus @default(active)
+  sourceTicketNumber String?       @map("source_ticket_number")
+  documentId         String?       @map("document_id") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@map("ecredits")
+}
+
+// One flight segment. Local date and times are what the airline prints;
+// UTC times are filled in when the airport time zones are known.
 model Flight {
   id           String       @id @default(uuid()) @db.Uuid
   bookingId    String?      @map("booking_id") @db.Uuid
@@ -130,10 +169,14 @@ model Flight {
   flightNumber String       @map("flight_number") @db.VarChar(8)
   depAirport   String       @map("dep_airport") @db.Char(3)
   arrAirport   String       @map("arr_airport") @db.Char(3)
-  depTimeUtc   DateTime     @map("dep_time_utc")
+  depDate      DateTime     @map("dep_date") @db.Date
+  depTimeLocal String?      @map("dep_time_local") @db.VarChar(5)
+  arrTimeLocal String?      @map("arr_time_local") @db.VarChar(5)
+  depTimeUtc   DateTime?    @map("dep_time_utc")
   arrTimeUtc   DateTime?    @map("arr_time_utc")
   seat         String?
   cabin        String?
+  fareClass    String?      @map("fare_class") @db.VarChar(2)
   status       FlightStatus @default(scheduled)
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
@@ -142,7 +185,7 @@ model Flight {
   trip    Trip?          @relation(fields: [tripId], references: [id], onDelete: SetNull)
   changes FlightChange[]
 
-  @@unique([carrier, flightNumber, depTimeUtc])
+  @@unique([carrier, flightNumber, depDate])
   @@index([tripId])
   @@map("flights")
 }
@@ -167,6 +210,7 @@ model FlightChange {
 model Expense {
   id         String   @id @default(uuid()) @db.Uuid
   tripId     String?  @map("trip_id") @db.Uuid
+  bookingId  String?  @map("booking_id") @db.Uuid
   category   String
   merchant   String?
   amount     Decimal  @db.Decimal(12, 2)
@@ -177,8 +221,10 @@ model Expense {
   createdAt  DateTime @default(now()) @map("created_at")
 
   trip     Trip?     @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  booking  Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
   document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
+  @@unique([bookingId, category])
   @@index([tripId])
   @@map("expenses")
 }
@@ -200,6 +246,7 @@ model Airport {
   iata    String  @id @db.Char(3)
   name    String
   city    String?
+  state   String?
   country String? @db.Char(2)
   tz      String?
 

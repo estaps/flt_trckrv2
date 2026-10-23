@@ -1,10 +1,10 @@
 import { extractJson, type LlmImage, type LlmSettings } from "../llm";
 import { ParsedDocument } from "./types";
 
-const SYSTEM = `You extract travel bookings from airline emails, receipts and itineraries.
+const SYSTEM = `You extract travel bookings from airline emails, receipts and itineraries, and travel expenses from other receipts.
 Reply with one JSON object and nothing else. Use this shape:
 {
-  "kind": "itinerary" | "ticket_receipt" | "cancellation" | "unknown",
+  "kind": "itinerary" | "ticket_receipt" | "cancellation" | "expense_receipt" | "unknown",
   "airline": two-letter IATA airline code,
   "confirmationCode": six-character record locator,
   "ticketNumber": 13-digit ticket number,
@@ -23,8 +23,15 @@ Reply with one JSON object and nothing else. Use this shape:
   "paymentCard": card brand and last four digits,
   "ecreditsApplied": [{"number": string, "amount": number, "currency": "USD"}],
   "ecreditsIssued": [{"number": string, "amount": number, "currency": "USD", "expiresOn": "YYYY-MM-DD"}],
-  "cancelledTicketNumbers": [string]
+  "cancelledTicketNumbers": [string],
+  "expense": {
+    "category": "lodging" | "ground" | "car_rental" | "meals" | "baggage" | "parking" | "fuel" | "connectivity" | "fees" | "other",
+    "merchant": business name, "total": number actually paid including tax and tip,
+    "currency": ISO 4217 code, "date": "YYYY-MM-DD"
+  }
 }
+Use "expense_receipt" with "expense" for any receipt that is not an airline ticket: hotels, taxis and rideshares, meals, car rentals, parking, bag fees.
+"ground" covers taxis, rideshares, trains and transit.
 Leave out any field the document does not state. Never guess numbers.`;
 
 export async function parseWithLlm(settings: LlmSettings, text: string, sentAt?: string, images?: LlmImage[]) {

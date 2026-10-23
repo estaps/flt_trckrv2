@@ -12,6 +12,10 @@ Design: see the project design doc ("Flight tracker: getting flights and receipt
 - Upload page (PDF, .eml, photos, pasted text) and a review inbox where parsed documents are confirmed into trips
 - Delta templates for the itinerary hold, eTicket receipt and cancellation emails (printed to PDF) and the delta.com receipt PDF; anything else goes to the configured LLM
 - Bookings, ticket numbers, airfare expenses and Delta eCredits (issued, applied, remaining) tracked from those documents
+- Expenses per trip (lodging, taxis, meals, car rental and more) with an optional receipt, entered by hand or read from a receipt photo or PDF through the review inbox
+- Foreign-currency expenses converted to the home currency with that day's ECB rate (via Frankfurter, cached), or with the amount your card was actually charged
+- A ticket photo gallery per trip (tickets, boarding passes, receipts) with upright thumbnails; any photo can be sent through the parser to pull out flights or an expense
+- `GET/POST /api/expenses`, `GET/PATCH/DELETE /api/expenses/:id`, `POST /api/expenses/convert`, `GET/POST /api/trips/:id/photos`, `PATCH/DELETE /api/photos/:id`, `GET /api/photos/:id/file[?size=thumb]`, `POST /api/photos/:id/parse`
 - `POST /api/documents` (multipart `file`) to ingest from scripts, and `POST /api/documents/:id/confirm` with `{"tripId"}` or `{"newTripName"}`
 - A swappable LLM client (`src/lib/llm`) for OpenAI-compatible servers and Anthropic, configured by environment variables
 - Docker image that backs up the app's schema and runs migrations on startup
@@ -38,7 +42,8 @@ Uploaded files and backups live in `./data`, mounted at `/data`.
 | `DATABASE_URL` | required | Postgres connection, with `?schema=` |
 | `HOME_CURRENCY` | `USD` | Currency for expense totals |
 | `API_TOKEN` | empty | When set, the API requires `Authorization: Bearer <token>` |
-| `FILES_DIR` | `/data/files` | Storage for emails and uploads |
+| `FILES_DIR` | `/data/files` | Storage for emails, uploads and photos (photos go in `photos/`) |
+| `FX_API_URL` | `https://api.frankfurter.dev/v1` | Daily exchange rates for expenses; `off` to disable and enter card charges by hand |
 | `BACKUP_BEFORE_MIGRATE` | `true` | `pg_dump` the schema before migrations; startup stops if the backup fails |
 | `BACKUP_DIR` | `/data/backups` | Where backups go |
 | `LLM_PROVIDER` | `openai` | `openai` for any OpenAI-compatible server (Ollama, vLLM, llama.cpp, LM Studio, OpenRouter), or `anthropic` |

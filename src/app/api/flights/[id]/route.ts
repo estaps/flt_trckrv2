@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { errorResponse, requireToken } from "@/lib/api";
-import { FlightInput } from "@/lib/schemas";
+import { FlightPatch } from "@/lib/schemas";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (denied) return denied;
   const { id } = await params;
   try {
-    const input = FlightInput.partial().parse(await req.json());
+    const input = FlightPatch.parse(await req.json());
     const flight = await prisma.flight.update({ where: { id }, data: input });
     return NextResponse.json(flight);
   } catch (err) {

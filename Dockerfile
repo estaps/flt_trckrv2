@@ -12,10 +12,11 @@ RUN npm run build
 FROM node:22-trixie-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
+# poppler-utils provides pdftotext for reading PDFs.
 # postgresql-client (17 on trixie) provides pg_dump for the pre-migration backup;
 # it can dump Postgres 17 and older servers.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl postgresql-client \
+  && apt-get install -y --no-install-recommends openssl postgresql-client poppler-utils \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static

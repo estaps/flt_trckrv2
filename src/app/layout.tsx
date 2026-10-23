@@ -12,6 +12,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="top">
           <a href="/" className="brand">Flight Tracker</a>
+          <nav>
+            <a href="/">Trips</a>
+            <a href="/inbox">Inbox</a>
+            <a href="/upload">Upload</a>
+            <a href="/ecredits">eCredits</a>
+          </nav>
         </header>
         <main>{children}</main>
       </body>

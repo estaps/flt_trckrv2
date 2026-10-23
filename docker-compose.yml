@@ -9,3 +9,34 @@ services:
       - "3000:3000"
     volumes:
       - ./data:/data
+
+  # Fare scraping sidecar: github.com/affromero/flight-finder (MIT). It checks
+  # Google Flights in headless Chromium on its own schedule; the app reads the
+  # fares back through its API. Settings are the FLIGHT_FINDER_* values in .env.
+  flight-finder:
+    image: ${FLIGHT_FINDER_IMAGE:-ghcr.io/affromero/flight-finder:latest}
+    restart: unless-stopped
+    init: true
+    shm_size: 1gb
+    ports:
+      - "${FLIGHT_FINDER_PORT:-3003}:3003"
+    environment:
+      # Its own database, not the app's: it manages its tables with its own migrations.
+      DATABASE_URL: ${FLIGHT_FINDER_DATABASE_URL:-}
+      NODE_ENV: production
+      SELF_HOSTED: "true"
+      CHROME_PATH: /usr/bin/chromium-browser
+      INSTALL_CLI_PROVIDERS: "false"
+      CRON_INTERVAL_HOURS: ${FLIGHT_FINDER_CHECK_HOURS:-3}
+      ADMIN_SESSION_SECRET: ${FLIGHT_FINDER_SESSION_SECRET:-}
+      CRON_SECRET: ${FLIGHT_FINDER_CRON_SECRET:-}
+      # Read on its first start only: the admin password, the shared sign-in
+      # password, and the API token this app uses (FLIGHT_FINDER_TOKEN).
+      SIDEDOOR_IMPORT_ADMIN_PASSWORD: ${FLIGHT_FINDER_ADMIN_PASSWORD:-}
+      SIDEDOOR_IMPORT_PASSWORD: ${FLIGHT_FINDER_PASSWORD:-}
+      SIDEDOOR_IMPORT_MACHINE_TOKEN: ${FLIGHT_FINDER_TOKEN:-}
+    volumes:
+      - flight-finder-data:/app/data
+
+volumes:
+  flight-finder-data:

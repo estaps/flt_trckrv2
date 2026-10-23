@@ -23,9 +23,36 @@ services:
       FILES_DIR: /data/files
       BACKUP_BEFORE_MIGRATE: "true"
       BACKUP_DIR: /data/backups
+      FLIGHT_FINDER_URL: http://flight-finder:3003
+      FLIGHT_FINDER_TOKEN: ff_test_token_change_me
     depends_on:
       postgres:
         condition: service_healthy
 
+  flight-finder-db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flightfinder
+      POSTGRES_PASSWORD: flightfinder
+      POSTGRES_DB: flight_finder
+    volumes:
+      - ffdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flightfinder"]
+      interval: 5s
+      retries: 10
+
+  flight-finder:
+    environment:
+      DATABASE_URL: postgresql://flightfinder:flightfinder@flight-finder-db:5432/flight_finder
+      SIDEDOOR_IMPORT_ADMIN_PASSWORD: flighttracker
+      SIDEDOOR_IMPORT_PASSWORD: flighttracker
+      SIDEDOOR_IMPORT_MACHINE_TOKEN: ff_test_token_change_me
+    depends_on:
+      flight-finder-db:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  ffdata:

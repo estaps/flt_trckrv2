@@ -24,6 +24,11 @@ const ConfigSchema = z.object({
   IMAP_PASSWORD: z.preprocess(emptyToUndefined, z.string().optional()),
   IMAP_MAILBOX: z.string().default("INBOX"),
   IMAP_POLL_SECONDS: z.coerce.number().int().positive().default(300),
+  FLIGHT_FINDER_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  FLIGHT_FINDER_TOKEN: z.preprocess(emptyToUndefined, z.string().optional()),
+  PRICE_SYNC_MINUTES: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0).default(60)),
+  ALERT_WEBHOOK_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  ALERT_WEBHOOK_FORMAT: z.preprocess(emptyToUndefined, z.enum(["ntfy", "json"]).default("ntfy")),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

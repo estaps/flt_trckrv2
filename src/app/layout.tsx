@@ -17,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/inbox">Inbox</a>
             <a href="/upload">Upload</a>
             <a href="/ecredits">eCredits</a>
+            <a href="/prices">Prices</a>
           </nav>
         </header>
         <main>{children}</main>

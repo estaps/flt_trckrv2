@@ -252,3 +252,13 @@ model Airport {
 
   @@map("airports")
 }
+
+// How far the mail worker has read each mailbox. UIDs are only valid within one UIDVALIDITY.
+model MailCursor {
+  mailbox     String   @id
+  uidValidity BigInt   @map("uid_validity")
+  lastUid     Int      @map("last_uid")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("mail_cursors")
+}

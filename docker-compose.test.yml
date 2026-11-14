@@ -27,5 +27,12 @@ services:
       postgres:
         condition: service_healthy
 
+  worker:
+    env_file: !reset []
+    environment:
+      DATABASE_URL: postgresql://flighttracker:flighttracker@postgres:5432/flighttracker?schema=flighttracker
+      FILES_DIR: /data/files
+      SKIP_MIGRATIONS: "true"
+
 volumes:
   pgdata:

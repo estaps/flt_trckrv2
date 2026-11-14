@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+# Only the web container migrates; the worker sets SKIP_MIGRATIONS=true and waits for the schema.
+if [ "${SKIP_MIGRATIONS:-false}" = "true" ]; then
+  exec "$@"
+fi
+
 # Snapshot the app's schema before applying migrations, so a bad upgrade can be rolled back.
 if [ "${BACKUP_BEFORE_MIGRATE:-true}" = "true" ]; then
   mkdir -p "${BACKUP_DIR:-/data/backups}"

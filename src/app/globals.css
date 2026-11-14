@@ -36,3 +36,12 @@ button { padding: 7px 12px; border: 0; border-radius: 6px; background: var(--acc
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 button.secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .error { color: #c0392b; }
+.small { font-size: 12px; }
+.scroll { overflow-x: auto; }
+td.actions { display: flex; gap: 10px; align-items: center; }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); font-size: inherit; }
+.stack { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+.gallery figure { margin: 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--bg); }
+.gallery img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.gallery figcaption { padding: 8px; font-size: 13px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }

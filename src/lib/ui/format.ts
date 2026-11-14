@@ -16,5 +16,6 @@ export const KIND_LABELS: Record<string, string> = {
   itinerary: "Itinerary (not yet ticketed)",
   ticket_receipt: "Ticket receipt",
   cancellation: "Cancellation",
+  expense_receipt: "Receipt",
   unknown: "Unrecognized",
 };

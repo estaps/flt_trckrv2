@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { airportByIata } from "@/lib/airports";
 import { ConfirmError, confirmDocument, latestResolved } from "@/lib/ingest/apply";
+import { EXPENSE_CATEGORIES } from "@/lib/schemas";
 import { KIND_LABELS, money, ymd } from "@/lib/ui/format";
 
 export const dynamic = "force-dynamic";
@@ -37,10 +38,10 @@ export default async function ReviewPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; trip?: string }>;
 }) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, trip: tripHint } = await searchParams;
   const doc = await prisma.document.findUnique({ where: { id } }).catch(() => null);
   if (!doc) notFound();
   const resolved = await latestResolved(id);
@@ -51,11 +52,13 @@ export default async function ReviewPage({
       } | null);
 
   const flights = resolved?.flights ?? [];
-  const dates = flights.map((f) => f.depDate).sort();
+  const expense = resolved?.parsed.expense;
+  const dates = [...flights.map((f) => f.depDate), ...(expense?.date ? [expense.date] : [])].sort();
   const trips = await prisma.trip.findMany({ orderBy: { startDate: "desc" }, take: 50 });
   // Suggest a trip whose dates overlap these flights, give or take two days.
   const pad = 2 * 86400000;
-  const suggested = dates.length
+  // A trip named in the link (from a trip page upload) wins over the date match.
+  const suggested = trips.find((t) => t.id === tripHint) ?? (dates.length
     ? trips.find(
         (t) =>
           t.startDate &&
@@ -63,9 +66,11 @@ export default async function ReviewPage({
           t.startDate.getTime() - pad <= Date.parse(dates[dates.length - 1]) &&
           t.endDate.getTime() + pad >= Date.parse(dates[0]),
       )
-    : undefined;
+    : undefined);
   const firstArrival = flights[0]?.arrAirport ? airportByIata(flights[0].arrAirport) : undefined;
-  const suggestedName = firstArrival ? `${titleCase(firstArrival.city)} ${dates[0]?.slice(5) ?? ""}`.trim() : "New trip";
+  const suggestedName = firstArrival
+    ? `${titleCase(firstArrival.city)} ${dates[0]?.slice(5) ?? ""}`.trim()
+    : expense?.merchant ?? "New trip";
   const p = resolved?.parsed;
 
   return (
@@ -146,11 +151,25 @@ export default async function ReviewPage({
         </section>
       ) : null}
 
+      {expense ? (
+        <section className="card">
+          <h3>Expense</h3>
+          <table>
+            <tbody>
+              <tr><td>Category</td><td>{EXPENSE_CATEGORIES[expense.category as keyof typeof EXPENSE_CATEGORIES] ?? "Other"}</td></tr>
+              {expense.merchant ? <tr><td>Merchant</td><td>{expense.merchant}</td></tr> : null}
+              {expense.date ? <tr><td>Date</td><td>{expense.date}</td></tr> : null}
+              <tr><td><strong>Total</strong></td><td><strong>{money(expense.total, expense.currency)}</strong></td></tr>
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
       {doc.status === "needs_review" && resolved ? (
         <section className="card">
           <form action={confirm}>
             <input type="hidden" name="documentId" value={doc.id} />
-            {flights.length > 0 ? (
+            {flights.length > 0 || expense ? (
               <div className="row">
                 <label>
                   Trip

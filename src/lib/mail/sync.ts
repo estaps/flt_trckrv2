@@ -16,13 +16,20 @@ export async function syncMailbox(client: ImapFlow, mailbox: string, log: Log = 
   const result: SyncResult = { imported: 0, duplicates: 0 };
   const lock = await client.getMailboxLock(mailbox);
   try {
+    // The message count from SELECT goes stale while the connection sits open: without IDLE,
+    // servers only report new mail in reply to a command. NOOP asks for it, so a mailbox that
+    // was empty at connect does not look empty forever. It also keeps the connection alive.
+    await client.noop();
     const box = client.mailbox;
     if (!box) throw new Error(`mailbox ${mailbox} did not open`);
     const uidValidity = BigInt(box.uidValidity);
     const cursor = await prisma.mailCursor.findUnique({ where: { mailbox } });
     let lastUid = cursor && cursor.uidValidity === uidValidity ? cursor.lastUid : 0;
     if (cursor && cursor.uidValidity !== uidValidity) log(`${mailbox}: UIDVALIDITY changed, rescanning`);
-    if (box.exists === 0) return result;
+    if (box.exists === 0) {
+      if (!cursor) await prisma.mailCursor.create({ data: { mailbox, uidValidity, lastUid: 0 } });
+      return result;
+    }
 
     // "N:*" always includes the newest message even when its UID is below N, hence the check.
     const uids: number[] = [];

@@ -16,7 +16,13 @@ export const FlightFields = z.object({
   tripId: z.string().uuid().optional(),
   bookingId: z.string().uuid().optional(),
   carrier: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{2,3}$/, "expected an airline code like DL"),
-  flightNumber: z.string().trim().regex(/^\d{1,4}[A-Z]?$/, "expected a flight number like 1234"),
+  // Leading zeros dropped so "0567" and "567" are the same flight.
+  flightNumber: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^\d{1,4}[A-Z]?$/, "expected a flight number like 1234")
+    .transform((n) => n.replace(/^0+(?=\d)/, "")),
   depAirport: iata,
   arrAirport: iata,
   depDate: isoDate.optional(), // local departure date
@@ -56,7 +62,17 @@ export type ExpenseCategory = keyof typeof EXPENSE_CATEGORIES;
 const categoryKeys = Object.keys(EXPENSE_CATEGORIES) as [ExpenseCategory, ...ExpenseCategory[]];
 
 const optionalText = z.preprocess((v) => (v === "" || v === null ? undefined : v), z.string().trim().optional());
-const optionalNumber = z.preprocess((v) => (v === "" || v === null ? undefined : v), z.coerce.number().finite().optional());
+// Accepts amounts as people type them: "23,50" and "1.234,56" (decimal comma), "1,234.56", "$12".
+export function normalizeAmount(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  let s = v.trim().replace(/[\s\u00a0$€£¥]/g, "");
+  if (/^-?\d{1,3}(\.\d{3})+,\d{1,2}$/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
+  else if (/^-?\d+,\d{1,2}$/.test(s)) s = s.replace(",", ".");
+  else s = s.replace(/,(?=\d{3}(\D|$))/g, "");
+  return s;
+}
+const amountNumber = z.preprocess(normalizeAmount, z.coerce.number({ invalid_type_error: "enter an amount like 23.50" }).finite());
+const optionalNumber = z.preprocess((v) => (v === "" || v === null ? undefined : normalizeAmount(v)), z.coerce.number({ invalid_type_error: "enter an amount like 23.50" }).finite().optional());
 
 export const ExpenseFields = z.object({
   tripId: z.string().uuid().optional(),
@@ -64,7 +80,7 @@ export const ExpenseFields = z.object({
   merchant: optionalText,
   notes: optionalText,
   // Negative for refunds.
-  amount: z.coerce.number().finite().refine((n) => n !== 0, "amount cannot be zero"),
+  amount: amountNumber.refine((n) => n !== 0, "amount cannot be zero"),
   currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/, "expected a currency code like USD or EUR"),
   spentOn: isoDate,
   // What the card was actually charged in the home currency; overrides the looked-up rate.

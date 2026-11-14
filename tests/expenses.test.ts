@@ -107,3 +107,33 @@ describe("photo thumbnails", () => {
     expect(await makeThumbnail(Buffer.from("not an image"))).toBeNull();
   });
 });
+
+describe("amounts as typed", () => {
+  it.each([
+    ["23,50", 23.5],
+    ["1.234,56", 1234.56],
+    ["1,234.56", 1234.56],
+    ["$12", 12],
+    ["€ 9,90", 9.9],
+    ["-15.00", -15],
+    ["1,234", 1234],
+  ])("reads %s", (typed, expected) => {
+    const e = ExpenseInput.parse({ category: "meals", amount: typed, currency: "EUR", spentOn: "2026-11-02", amountHome: typed });
+    expect(e.amount).toBe(expected);
+    expect(e.amountHome).toBe(expected);
+  });
+
+  it("rejects text that is not an amount", () => {
+    const r = ExpenseInput.safeParse({ category: "meals", amount: "twelve", currency: "EUR", spentOn: "2026-11-02" });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe("FlightInput", () => {
+  it("drops leading zeros from flight numbers", async () => {
+    const { FlightInput } = await import("@/lib/schemas");
+    const f = FlightInput.parse({ carrier: "dl", flightNumber: "0567", depAirport: "lax", arrAirport: "atl", depDate: "2026-12-27" });
+    expect(f.flightNumber).toBe("567");
+    expect(f.carrier).toBe("DL");
+  });
+});

@@ -23,7 +23,7 @@ function homeCell(e: Expense, home: string) {
   return <span title={`1 ${e.currency} = ${Number(e.fxRate).toFixed(4)} ${home} (${how})`}>{money(e.amountHome, home)}</span>;
 }
 
-export function ExpensesSection({ tripId, expenses, home, defaultDate }: { tripId: string; expenses: Expense[]; home: string; defaultDate: string }) {
+export function ExpensesSection({ tripId, expenses, home, defaultDate, error }: { tripId: string; expenses: Expense[]; home: string; defaultDate: string; error?: string }) {
   const total = expenses.reduce((sum, e) => sum + Number(e.amountHome ?? 0), 0);
   const unconverted = expenses.filter((e) => e.amountHome === null).length;
   const byCategory = new Map<string, number>();
@@ -74,7 +74,7 @@ export function ExpensesSection({ tripId, expenses, home, defaultDate }: { tripI
             {unconverted ? (
               <form action={convertExpenses} className="row">
                 <input type="hidden" name="tripId" value={tripId} />
-                <span className="muted">{unconverted} in other currencies are not in the total yet.</span>
+                <span className="muted">{unconverted === 1 ? "1 expense in another currency is" : `${unconverted} expenses in other currencies are`} not in the total yet.</span>
                 <button type="submit" className="secondary">Look up exchange rates</button>
               </form>
             ) : null}
@@ -84,6 +84,7 @@ export function ExpensesSection({ tripId, expenses, home, defaultDate }: { tripI
 
       <section className="card">
         <h3>Add an expense</h3>
+        {error ? <p className="error">Expense not added. {error}</p> : null}
         <form action={addExpense} className="inline">
           <input type="hidden" name="tripId" value={tripId} />
           <label>Category

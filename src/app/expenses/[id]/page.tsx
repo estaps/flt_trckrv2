@@ -9,8 +9,15 @@ import { CurrencyList } from "@/app/trips/[id]/expenses";
 
 export const dynamic = "force-dynamic";
 
-export default async function ExpensePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ExpensePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   const { id } = await params;
+  const { error } = await searchParams;
   const e = await prisma.expense.findUnique({ where: { id }, include: { trip: true } }).catch(() => null);
   if (!e) notFound();
   const home = getConfig().HOME_CURRENCY;
@@ -20,6 +27,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       <p>{e.trip ? <a href={`/trips/${e.trip.id}`}>{e.trip.name}</a> : <a href="/">All trips</a>}</p>
       <section className="card">
         <h2>Edit expense</h2>
+        {error ? <p className="error">Not saved. {error}</p> : null}
         <form action={saveExpense} className="inline">
           <input type="hidden" name="expenseId" value={e.id} />
           <label>Category

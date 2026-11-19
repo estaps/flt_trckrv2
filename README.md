@@ -30,10 +30,24 @@ docker compose -f docker-compose.yml -f docker-compose.test.yml up --build
 
 Open http://localhost:3000. The test stack starts its own `postgres:16` with a named volume.
 
-## Run against an existing Postgres
+## Install on a server with an existing Postgres
 
-1. Copy `.env.example` to `.env` and set `DATABASE_URL`. Tables are created in the schema named by `?schema=` (default `flighttracker`), so an existing server can be shared.
-2. `docker compose up -d --build`
+```sh
+git clone <this repo> flight-tracker && cd flight-tracker
+./scripts/setup.sh
+```
+
+The script asks for your Postgres server, then:
+
+1. Checks the connection from a container set up the way the app's will be, so a pass means the app can connect too. `localhost` becomes `host.docker.internal`, which the compose file maps to the Docker host. If Postgres runs in a container, give its Docker network, and the app joins it (written to `docker-compose.local.yml`).
+2. Optionally creates the app's user and database with an admin login, and flight-finder's database if you turn price tracking on. psql runs in a throwaway `postgres:16` container, so the host doesn't need it.
+3. Checks that the user can create the schema (`?schema=`, default `flighttracker`), so an existing server can be shared. It also warns if the server is newer than the image's `pg_dump` 17.
+4. Asks for the LLM endpoint, the mailbox (none, any IMAP server, or Proton Bridge) and whether to run the flight-finder sidecar. It generates the tokens and secrets the sidecar needs.
+5. Writes `.env` (mode 600), builds and starts the stack, and waits until the app is healthy.
+
+Run it again any time to change answers. What is already in `.env` is offered as the default, and the old file is kept as `.env.bak-<time>`. For an unattended install, set the answers as `FT_*` variables (see the top of the script) and pass `--yes`. `--no-start` only writes `.env`, and `--no-build` uses an existing `flight-tracker:latest` image.
+
+To do it by hand instead, copy `.env.example` to `.env`, set `DATABASE_URL`, and run `docker compose up -d --build`. The flight-finder sidecar starts only with `COMPOSE_PROFILES=prices`.
 
 Uploaded files and backups live in `./data`, mounted at `/data`.
 

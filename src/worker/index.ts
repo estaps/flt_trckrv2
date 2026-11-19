@@ -73,8 +73,10 @@ async function main() {
   const c = getConfig();
   if (!c.IMAP_HOST || !c.IMAP_USER || !c.IMAP_PASSWORD) {
     log("IMAP_HOST, IMAP_USER and IMAP_PASSWORD are not all set; email import is off");
-    // Stay up so a restart policy does not loop.
-    await new Promise(() => {});
+    // Stay up so a restart policy does not loop. A bare pending promise does not keep
+    // Node running (the process would exit 0 and restart forever); a timer does.
+    // SIGTERM still stops it through the handler below.
+    await new Promise(() => setInterval(() => {}, 1 << 30));
   }
   await waitForSchema();
   let delay = 5000;

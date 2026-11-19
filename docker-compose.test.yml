@@ -51,6 +51,8 @@ services:
       retries: 10
 
   flight-finder:
+    # Always on in the test stack, whatever COMPOSE_PROFILES says.
+    profiles: !reset []
     environment:
       DATABASE_URL: postgresql://flightfinder:flightfinder@flight-finder-db:5432/flight_finder
       SIDEDOOR_IMPORT_ADMIN_PASSWORD: flighttracker

@@ -7,3 +7,4 @@ data/
 *.log
 *.tsbuildinfo
 dist
+docker-compose.local.yml

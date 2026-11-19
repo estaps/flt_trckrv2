@@ -6,7 +6,10 @@ services:
     restart: unless-stopped
     env_file: .env
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
+    # Lets DATABASE_URL use host.docker.internal for a Postgres running on the Docker host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/data
     healthcheck:
@@ -24,6 +27,8 @@ services:
     environment:
       SKIP_MIGRATIONS: "true"
     command: ["node", "worker.js"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./data:/data
     depends_on:
@@ -33,7 +38,9 @@ services:
   # Fare scraping sidecar: github.com/affromero/flight-finder (MIT). It checks
   # Google Flights in headless Chromium on its own schedule; the app reads the
   # fares back through its API. Settings are the FLIGHT_FINDER_* values in .env.
+  # Off unless the "prices" profile is on: COMPOSE_PROFILES=prices in .env.
   flight-finder:
+    profiles: [prices]
     image: ${FLIGHT_FINDER_IMAGE:-ghcr.io/affromero/flight-finder:latest}
     restart: unless-stopped
     init: true
@@ -57,6 +64,8 @@ services:
       SIDEDOOR_IMPORT_MACHINE_TOKEN: ${FLIGHT_FINDER_TOKEN:-}
     volumes:
       - flight-finder-data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   flight-finder-data:

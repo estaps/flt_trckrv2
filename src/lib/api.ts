@@ -17,7 +17,8 @@ export function errorResponse(err: unknown): NextResponse {
     return NextResponse.json({ error: "invalid_request", issues: err.issues }, { status: 400 });
   }
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    if (err.code === "P2025") return NextResponse.json({ error: "not_found" }, { status: 404 });
+    // P2023: an id that is not a UUID, such as /api/trips/abc.
+    if (err.code === "P2025" || err.code === "P2023") return NextResponse.json({ error: "not_found" }, { status: 404 });
     if (err.code === "P2002") return NextResponse.json({ error: "conflict" }, { status: 409 });
   }
   console.error(err);

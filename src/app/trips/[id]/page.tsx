@@ -1,16 +1,19 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { FlightInput } from "@/lib/schemas";
-import { money, ymd } from "@/lib/ui/format";
+import { ymd } from "@/lib/ui/format";
+import { ExpensesSection } from "./expenses";
+import { PhotosSection } from "./photos";
 
 export const dynamic = "force-dynamic";
 
 async function addFlight(formData: FormData) {
   "use server";
   const tripId = String(formData.get("tripId"));
-  const input = FlightInput.parse({
+  const parsed = FlightInput.safeParse({
     tripId,
     carrier: formData.get("carrier"),
     flightNumber: formData.get("flightNumber"),
@@ -20,25 +23,45 @@ async function addFlight(formData: FormData) {
     depTimeLocal: formData.get("depTimeLocal") || undefined,
     seat: formData.get("seat") || undefined,
   });
-  await prisma.flight.create({ data: input });
+  const back = (msg: string) => redirect(`/trips/${tripId}?flightError=${encodeURIComponent(msg)}#add-flight`);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    back(`${issue?.path.join(".") || "form"}: ${issue?.message ?? "check the form"}`);
+    return;
+  }
+  try {
+    await prisma.flight.create({ data: parsed.data });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const f = parsed.data;
+      back(`${f.carrier} ${f.flightNumber} on ${f.depDate.toISOString().slice(0, 10)} is already saved.`);
+    }
+    throw err;
+  }
   revalidatePath(`/trips/${tripId}`);
 }
 
-export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TripPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; expenseError?: string; flightError?: string }>;
+}) {
   const { id } = await params;
+  const { error, expenseError, flightError } = await searchParams;
   const trip = await prisma.trip
     .findUnique({
       where: { id },
       include: {
         flights: { orderBy: [{ depDate: "asc" }, { depTimeLocal: "asc" }], include: { booking: true } },
-        expenses: { orderBy: { spentOn: "asc" } },
+        expenses: { orderBy: [{ spentOn: "asc" }, { createdAt: "asc" }] },
+        photos: { orderBy: { createdAt: "asc" } },
       },
     })
     .catch(() => null);
   if (!trip) notFound();
   const home = getConfig().HOME_CURRENCY;
-  const total = trip.expenses.reduce((sum, e) => sum + Number(e.amountHome ?? 0), 0);
-  const unconverted = trip.expenses.filter((e) => e.amountHome === null).length;
 
   return (
     <>
@@ -68,32 +91,11 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
           </table>
         )}
       </section>
-      <section className="card">
-        <h3>Expenses</h3>
-        {trip.expenses.length === 0 ? (
-          <p className="muted">No expenses yet.</p>
-        ) : (
-          <table>
-            <thead><tr><th>Date</th><th>Category</th><th>Merchant</th><th>Amount</th></tr></thead>
-            <tbody>
-              {trip.expenses.map((e) => (
-                <tr key={e.id}>
-                  <td>{ymd(e.spentOn)}</td>
-                  <td>{e.category}</td>
-                  <td>{e.merchant ?? ""}</td>
-                  <td>{money(e.amount, e.currency)}</td>
-                </tr>
-              ))}
-              <tr>
-                <td colSpan={3}><strong>Total ({home})</strong>{unconverted ? <span className="muted"> · {unconverted} in other currencies not included</span> : null}</td>
-                <td><strong>{money(total, home)}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        )}
-      </section>
-      <section className="card">
+      <ExpensesSection tripId={trip.id} expenses={trip.expenses} home={home} defaultDate={ymd(trip.startDate)} error={expenseError} />
+      <PhotosSection tripId={trip.id} photos={trip.photos} flights={trip.flights} error={error} />
+      <section className="card" id="add-flight">
         <h3>Add a flight</h3>
+        {flightError ? <p className="error">Flight not added. {flightError}</p> : null}
         <form action={addFlight} className="inline">
           <input type="hidden" name="tripId" value={trip.id} />
           <label>Airline<input name="carrier" defaultValue="DL" size={3} required /></label>

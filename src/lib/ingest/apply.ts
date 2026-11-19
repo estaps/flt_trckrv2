@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { getConfig } from "../config";
 import { prisma } from "../db";
+import { fillHomeAmounts } from "../fx";
 import type { ResolvedDocument } from "../parse/resolve";
+import { EXPENSE_CATEGORIES } from "../schemas";
 
 const AIRLINES: Record<string, string> = { DL: "Delta Air Lines" };
 
@@ -21,6 +23,8 @@ const day = (iso: string) => new Date(`${iso}T00:00:00Z`);
 const TRACKED = ["depAirport", "arrAirport", "depTimeLocal", "arrTimeLocal", "seat"] as const;
 const SCHEDULE: string[] = ["depAirport", "arrAirport", "depTimeLocal", "arrTimeLocal"];
 
+const today = () => new Date().toISOString().slice(0, 10);
+
 // Writes a reviewed document into bookings, flights, expenses and eCredits.
 export async function confirmDocument(documentId: string, trip: TripChoice): Promise<void> {
   const resolved = await latestResolved(documentId);
@@ -34,7 +38,7 @@ export async function confirmDocument(documentId: string, trip: TripChoice): Pro
   await prisma.$transaction(async (tx) => {
     // Trip: attach to an existing one, or create one spanning the flights.
     let tripId: string | undefined;
-    const dates = flights.map((f) => f.depDate).sort();
+    const dates = [...flights.map((f) => f.depDate), ...(parsed.expense?.date ? [parsed.expense.date] : [])].sort();
     if (trip && "newTripName" in trip) {
       const created = await tx.trip.create({
         data: {
@@ -126,13 +130,16 @@ export async function confirmDocument(documentId: string, trip: TripChoice): Pro
     if (parsed.charges && bookingId) {
       const home = getConfig().HOME_CURRENCY;
       const amount = new Prisma.Decimal(parsed.charges.total);
-      const spentOn = day(parsed.issuedOn ?? parsed.sentAt ?? new Date().toISOString().slice(0, 10));
+      const spentOn = day(parsed.issuedOn ?? parsed.sentAt ?? today());
       const data = {
         tripId,
         merchant: parsed.airline ? (AIRLINES[parsed.airline] ?? parsed.airline) : undefined,
         amount,
         currency: parsed.charges.currency,
+        // Foreign currencies are converted by fillHomeAmounts below.
         amountHome: parsed.charges.currency === home ? amount : null,
+        fxRate: parsed.charges.currency === home ? new Prisma.Decimal(1) : null,
+        fxSource: parsed.charges.currency === home ? "same" : null,
         spentOn,
         documentId,
       };
@@ -169,6 +176,27 @@ export async function confirmDocument(documentId: string, trip: TripChoice): Pro
         });
     }
 
+    // A hotel, taxi or meal receipt becomes one expense on the trip.
+    if (parsed.expense) {
+      const e = parsed.expense;
+      const category = e.category && e.category in EXPENSE_CATEGORIES ? e.category : "other";
+      const data = {
+        tripId,
+        category,
+        merchant: e.merchant,
+        amount: new Prisma.Decimal(e.total),
+        currency: e.currency.toUpperCase(),
+        spentOn: day(e.date ?? parsed.sentAt ?? today()),
+        documentId,
+      };
+      const existing = await tx.expense.findFirst({ where: { documentId, bookingId: null } });
+      if (existing) await tx.expense.update({ where: { id: existing.id }, data });
+      else await tx.expense.create({ data });
+    }
+
     await tx.document.update({ where: { id: documentId }, data: { status: "confirmed" } });
   });
+
+  // Exchange rates come from the network, so they are looked up after the write commits.
+  await fillHomeAmounts({ documentId }).catch((err) => console.error("currency conversion failed", err));
 }

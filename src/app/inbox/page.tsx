@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { ResolvedDocument } from "@/lib/parse/resolve";
-import { KIND_LABELS } from "@/lib/ui/format";
+import { KIND_LABELS, statusLabel, statusTone } from "@/lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +14,19 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   });
 
   return (
-    <section className="card">
-      <div className="row" style={{ justifyContent: "space-between" }}>
+    <>
+    <div className="page-head">
+      <div>
         <h2>Inbox</h2>
-        <a href={showAll ? "/inbox" : "/inbox?all=1"}>{showAll ? "Show items to review" : "Show everything"}</a>
+        <p className="sub">{showAll ? `${docs.length} documents` : `${docs.length} to review`}</p>
       </div>
+      <a href={showAll ? "/inbox" : "/inbox?all=1"}>{showAll ? "Show items to review" : "Show everything"}</a>
+    </div>
+    <section className="card">
       {docs.length === 0 ? (
-        <p className="muted">Nothing to review. <a href="/upload">Upload a confirmation or receipt</a>.</p>
+        <p className="empty">Nothing to review. <a href="/upload">Upload a confirmation or receipt</a>.</p>
       ) : (
+        <div className="scroll">
         <table>
           <thead><tr><th>Document</th><th>Type</th><th>Confirmation</th><th>Flights</th><th>Status</th></tr></thead>
           <tbody>
@@ -32,18 +37,20 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
                 <tr key={d.id}>
                   <td><a href={`/inbox/${d.id}`}>{d.subject ?? "Untitled"}</a></td>
                   <td>{r ? KIND_LABELS[r.parsed.kind] : ""}</td>
-                  <td>{r?.parsed.confirmationCode ?? ""}</td>
-                  <td>{r?.flights.map((f) => `${f.carrier}${f.flightNumber} ${f.depAirport ?? "?"}-${f.arrAirport ?? "?"}`).join(", ")}</td>
+                  <td className="mono">{r?.parsed.confirmationCode ?? ""}</td>
+                  <td className="mono small">{r?.flights.map((f) => `${f.carrier}${f.flightNumber} ${f.depAirport ?? "?"}-${f.arrAirport ?? "?"}`).join(", ")}</td>
                   <td>
-                    <span className="tag">{d.status.replace("_", " ")}</span>
-                    {r && r.warnings.length > 0 ? <span className="warn"> {r.warnings.length} warning(s)</span> : null}
+                    <span className={`tag ${statusTone(d.status)}`}>{statusLabel(d.status)}</span>
+                    {r && r.warnings.length > 0 ? <div className="warn small">{r.warnings.length === 1 ? "1 warning" : `${r.warnings.length} warnings`}</div> : null}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        </div>
       )}
     </section>
+    </>
   );
 }

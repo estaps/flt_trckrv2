@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { money, ymd } from "@/lib/ui/format";
+import { money, statusLabel, statusTone, ymd } from "@/lib/ui/format";
 import { WatchPatch, deleteWatch, updateWatch } from "@/lib/prices/watches";
 import { flightFinderClient, syncWatch, watchTitle } from "@/lib/prices/sync";
 import { PriceChart } from "../chart";
@@ -81,7 +81,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
 
   return (
     <>
-      <p><a href="/prices">All price watches</a></p>
+      <div className="crumb"><a href="/prices">Prices</a> / {watchTitle(watch)}</div>
       <section className="card">
         <h2>{watchTitle(watch)}</h2>
         <p className="muted">
@@ -95,11 +95,11 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
           {watch.flight?.tripId ? <> · <a href={`/trips/${watch.flight.tripId}`}>trip</a></> : null}
         </p>
         <div className="row">
-          <span className="tag">{watch.status}</span>
-          {latest ? <span>Latest {money(latest.price, watch.currency)}</span> : null}
+          <span className={`tag ${statusTone(watch.status)}`}>{statusLabel(watch.status)}</span>
+          {latest ? <span>Latest <b className="mono">{money(latest.price, watch.currency)}</b></span> : null}
           {prices.length ? <span className="muted">Lowest {money(Math.min(...prices), watch.currency)}</span> : null}
           {latest && paid !== null ? (
-            <span className={Number(latest.price) < paid ? "" : "muted"}>
+            <span className={Number(latest.price) < paid ? "good-text" : "muted"}>
               {Number(latest.price) < paid
                 ? `${money(paid - Number(latest.price), watch.currency)} below what you paid`
                 : `Paid ${money(paid, watch.currency)}`}
@@ -132,7 +132,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
           ) : null}
           <form action={remove}>
             <input type="hidden" name="id" value={watch.id} />
-            <button className="secondary" type="submit">Delete</button>
+            <button className="secondary danger" type="submit">Delete</button>
           </form>
         </div>
       </section>
@@ -148,15 +148,15 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
           <label>or drop %<input name="dropPercent" type="number" step="1" min="1" max="99" defaultValue={watch.dropPercent ? Math.round(watch.dropPercent * 100) : ""} size={4} /></label>
           <button type="submit">Save</button>
         </form>
-        <p className="muted" style={{ fontSize: 12 }}>
+        <p className="hint">
           You get an alert when the fare drops by the amount or percent since its last high, reaches the target, or goes
           below what you paid.
         </p>
         {watch.alerts.length === 0 ? null : (
-          <ul>
+          <ul className="alerts" style={{ marginTop: 12 }}>
             {watch.alerts.map((a) => (
               <li key={a.id}>
-                {a.message} <span className="muted">{stamp(a.createdAt)} UTC{a.notifiedAt ? " · sent" : ""}</span>
+                <span>{a.message}</span> <span className="muted small mono">{stamp(a.createdAt)} UTC{a.notifiedAt ? " · sent" : ""}</span>
               </li>
             ))}
           </ul>
@@ -166,15 +166,16 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
       <section className="card">
         <h3>History</h3>
         {watch.points.length === 0 ? (
-          <p className="muted">No prices yet. The sidecar checks every few hours.</p>
+          <p className="empty">No prices yet. The sidecar checks every few hours.</p>
         ) : (
+          <div className="scroll">
           <table>
-            <thead><tr><th>Checked (UTC)</th><th>Price</th><th>Fare</th><th>Stops</th><th></th></tr></thead>
+            <thead><tr><th>Checked (UTC)</th><th className="money">Price</th><th>Fare</th><th>Stops</th><th></th></tr></thead>
             <tbody>
               {[...watch.points].reverse().map((p) => (
                 <tr key={p.id}>
-                  <td>{stamp(p.observedAt)}</td>
-                  <td>{money(p.price, p.currency)}</td>
+                  <td className="mono">{stamp(p.observedAt)}</td>
+                  <td className="money">{money(p.price, p.currency)}</td>
                   <td>
                     {[p.airline, p.flightNumber, p.departTime].filter(Boolean).join(" ")}{" "}
                     <span className="muted">({MATCHED[p.matchedBy] ?? p.matchedBy}, {p.fareCount} {p.fareCount === 1 ? "fare" : "fares"})</span>
@@ -185,6 +186,7 @@ export default async function WatchPage({ params }: { params: Promise<{ id: stri
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </>

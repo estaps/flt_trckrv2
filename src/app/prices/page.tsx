@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
-import { money, ymd } from "@/lib/ui/format";
+import { money, statusLabel, statusTone, ymd } from "@/lib/ui/format";
 import { WatchInput, createWatch } from "@/lib/prices/watches";
 import { syncAllWatches, watchTitle } from "@/lib/prices/sync";
 import { Sparkline } from "./chart";
@@ -85,6 +85,15 @@ export default async function PricesPage() {
 
   return (
     <>
+      <div className="page-head">
+        <div>
+          <h2>Prices</h2>
+          <p className="sub">{watches.filter((w) => w.status === "active").length} active watches</p>
+        </div>
+        {config.FLIGHT_FINDER_URL ? (
+          <form action={checkNow}><button className="secondary" type="submit">Check now</button></form>
+        ) : null}
+      </div>
       {!config.FLIGHT_FINDER_URL ? (
         <section className="card warn">
           Price checks are off because <code>FLIGHT_FINDER_URL</code> is not set. Watches can be added and will be
@@ -94,15 +103,15 @@ export default async function PricesPage() {
 
       {alerts.length > 0 ? (
         <section className="card">
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <h3 style={{ margin: 0 }}>New price alerts</h3>
+          <div className="card-head">
+            <h3>New price alerts</h3>
             <form action={markAlertsRead}><button className="secondary" type="submit">Mark all read</button></form>
           </div>
-          <ul>
+          <ul className="alerts">
             {alerts.map((a) => (
               <li key={a.id}>
-                <a href={`/prices/${a.watchId}`}>{a.message}</a>{" "}
-                <span className="muted">{a.createdAt.toISOString().slice(0, 16).replace("T", " ")} UTC</span>
+                <a href={`/prices/${a.watchId}`}>{a.message}</a>
+                <span className="muted small mono">{a.createdAt.toISOString().slice(0, 16).replace("T", " ")} UTC</span>
               </li>
             ))}
           </ul>
@@ -110,17 +119,13 @@ export default async function PricesPage() {
       ) : null}
 
       <section className="card">
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <h2 style={{ margin: 0 }}>Price watches</h2>
-          {config.FLIGHT_FINDER_URL ? (
-            <form action={checkNow}><button className="secondary" type="submit">Check now</button></form>
-          ) : null}
-        </div>
+        <div className="card-head"><h3>Watches</h3></div>
         {watches.length === 0 ? (
-          <p className="muted">Nothing watched yet. Add a booked flight or a route below.</p>
+          <p className="empty">Nothing watched yet. Add a booked flight or a route below.</p>
         ) : (
+          <div className="scroll">
           <table>
-            <thead><tr><th>Watch</th><th>Latest</th><th>Lowest</th><th>Paid</th><th>Trend</th><th>Status</th></tr></thead>
+            <thead><tr><th>Watch</th><th className="money">Latest</th><th className="money">Lowest</th><th className="money">Paid</th><th>Trend</th><th>Status</th></tr></thead>
             <tbody>
               {watches.map((w) => {
                 const prices = w.points.map((p) => Number(p.price));
@@ -128,27 +133,28 @@ export default async function PricesPage() {
                 return (
                   <tr key={w.id}>
                     <td><a href={`/prices/${w.id}`}>{watchTitle(w)}</a></td>
-                    <td>
+                    <td className="money">
                       {latest ? money(latest.price, w.currency) : <span className="muted">none yet</span>}
                       {latest && w.flightNumber && MATCH_NOTE[latest.matchedBy] ? (
                         <span className="muted" title={MATCH_NOTE[latest.matchedBy]}> *</span>
                       ) : null}
                     </td>
-                    <td>{prices.length ? money(Math.min(...prices), w.currency) : ""}</td>
-                    <td>{w.paidPrice !== null ? money(w.paidPrice, w.currency) : ""}</td>
+                    <td className="money">{prices.length ? money(Math.min(...prices), w.currency) : ""}</td>
+                    <td className="money">{w.paidPrice !== null ? money(w.paidPrice, w.currency) : ""}</td>
                     <td><Sparkline points={w.points.map((p) => ({ t: p.observedAt, price: Number(p.price) }))} /></td>
                     <td>
-                      <span className="tag">{w.status}</span>
-                      {w.lastError ? <div className="error" style={{ fontSize: 12 }}>{w.lastError}</div> : null}
+                      <span className={`tag ${statusTone(w.status)}`}>{statusLabel(w.status)}</span>
+                      {w.lastError ? <div className="bad-text small">{w.lastError}</div> : null}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </div>
         )}
         {watches.some((w) => w.flightNumber && MATCH_NOTE[w.points[w.points.length - 1]?.matchedBy]) ? (
-          <p className="muted" style={{ fontSize: 12 }}>
+          <p className="hint">
             * The fare site did not list the watched flight, so this is the airline&apos;s cheapest fare that day.
           </p>
         ) : null}
@@ -157,7 +163,7 @@ export default async function PricesPage() {
       <section className="card">
         <h3>Watch a booked flight</h3>
         {flights.length === 0 ? (
-          <p className="muted">No upcoming flights that are not already watched.</p>
+          <p className="empty">No upcoming flights that are not already watched.</p>
         ) : (
           <form action={addFlightWatch} className="inline">
             <label>Flight

@@ -10,10 +10,10 @@ export function PhotosSection({ tripId, photos, flights, error }: { tripId: stri
   const flightById = new Map(flights.map((f) => [f.id, f]));
   return (
     <section className="card" id="photos">
-      <h3>Ticket photos</h3>
+      <div className="card-head"><h3>Ticket photos</h3></div>
       {error ? <p className="error">{error}</p> : null}
       {photos.length === 0 ? (
-        <p className="muted">No photos yet. Add captures of tickets, boarding passes and receipts.</p>
+        <p className="empty">No photos yet. Add captures of tickets, boarding passes and receipts.</p>
       ) : (
         <div className="gallery">
           {photos.map((p) => {
@@ -24,8 +24,8 @@ export function PhotosSection({ tripId, photos, flights, error }: { tripId: stri
                   <img src={`/api/photos/${p.id}/file?size=thumb`} alt={p.caption ?? p.filename ?? "photo"} loading="lazy" />
                 </a>
                 <figcaption>
-                  <span className="tag">{PHOTO_KINDS[p.kind as keyof typeof PHOTO_KINDS] ?? p.kind}</span>{" "}
-                  {p.caption ?? ""}
+                  <span className="tag dim">{PHOTO_KINDS[p.kind as keyof typeof PHOTO_KINDS] ?? p.kind}</span>
+                  {p.caption ? <span>{p.caption}</span> : null}
                   {flight ? <div className="muted small">{flightLabel(flight)}</div> : null}
                   <details>
                     <summary className="small">edit</summary>
@@ -53,7 +53,7 @@ export function PhotosSection({ tripId, photos, flights, error }: { tripId: stri
                     )}
                     <form action={removePhoto}>
                       <input type="hidden" name="photoId" value={p.id} />
-                      <ConfirmButton message="Delete this photo?" className="link">delete</ConfirmButton>
+                      <ConfirmButton message="Delete this photo?" className="link danger">delete</ConfirmButton>
                     </form>
                   </div>
                 </figcaption>
@@ -62,7 +62,8 @@ export function PhotosSection({ tripId, photos, flights, error }: { tripId: stri
           })}
         </div>
       )}
-      <form action={uploadPhotos} className="inline" style={{ marginTop: 12 }}>
+      <hr className="divider" style={{ margin: "16px 0" }} />
+      <form action={uploadPhotos} className="inline">
         <input type="hidden" name="tripId" value={tripId} />
         <label>Photos<input name="photos" type="file" multiple accept="image/*" required /></label>
         <label>Kind

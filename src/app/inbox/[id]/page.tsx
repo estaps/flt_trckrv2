@@ -5,6 +5,7 @@ import { airportByIata } from "@/lib/airports";
 import { ConfirmError, confirmDocument, latestResolved } from "@/lib/ingest/apply";
 import { EXPENSE_CATEGORIES } from "@/lib/schemas";
 import { KIND_LABELS, money, ymd } from "@/lib/ui/format";
+import { statusLabel, statusTone } from "@/lib/ui/format";
 
 export const dynamic = "force-dynamic";
 
@@ -75,13 +76,13 @@ export default async function ReviewPage({
 
   return (
     <>
-      <p><a href="/inbox">Inbox</a></p>
+      <div className="crumb"><a href="/inbox">Inbox</a> / {doc.subject ?? "Document"}</div>
       <section className="card">
         <h2>{doc.subject ?? "Document"}</h2>
-        <p className="muted">
-          <span className="tag">{doc.status.replace("_", " ")}</span>{" "}
-          {doc.sender ? `${doc.sender} · ` : ""}received {ymd(doc.receivedAt)} ·{" "}
-          <a href={`/api/documents/${doc.id}/file`} target="_blank">open original</a>
+        <p className="row muted">
+          <span className={`tag ${statusTone(doc.status)}`}>{statusLabel(doc.status)}</span>
+          <span>{doc.sender ? `${doc.sender} · ` : ""}received {ymd(doc.receivedAt)}</span>
+          <a href={`/api/documents/${doc.id}/file`} target="_blank">Open original</a>
         </p>
         {error ? <p className="error">{error}</p> : null}
         {failure?.error ? <p className="error">Could not parse: {failure.error}</p> : null}
@@ -104,14 +105,15 @@ export default async function ReviewPage({
       {flights.length > 0 ? (
         <section className="card">
           <h3>Flights</h3>
+          <div className="scroll">
           <table>
             <thead><tr><th>Flight</th><th>Date</th><th>Route</th><th>Departs</th><th>Arrives</th><th>Cabin</th><th>Seat</th></tr></thead>
             <tbody>
               {flights.map((f) => (
                 <tr key={`${f.carrier}${f.flightNumber}${f.depDate}`}>
-                  <td>{f.carrier} {f.flightNumber}</td>
-                  <td>{f.depDate}</td>
-                  <td>{f.depAirport ?? "?"} to {f.arrAirport ?? "?"}</td>
+                  <td className="mono">{f.carrier} {f.flightNumber}</td>
+                  <td className="mono">{f.depDate}</td>
+                  <td className="mono">{f.depAirport ?? "?"} → {f.arrAirport ?? "?"}</td>
                   <td>{f.depTimeLocal ?? ""}</td>
                   <td>{f.arrTimeLocal ?? ""}</td>
                   <td>{[f.cabin, f.fareClass && `(${f.fareClass})`].filter(Boolean).join(" ")}</td>
@@ -120,14 +122,15 @@ export default async function ReviewPage({
               ))}
             </tbody>
           </table>
-          <p className="muted">Times are local to each airport.</p>
+          </div>
+          <p className="hint">Times are local to each airport.</p>
         </section>
       ) : null}
 
       {p && (p.charges || p.ecreditsApplied.length || p.ecreditsIssued.length || p.cancelledTicketNumbers.length) ? (
         <section className="card">
           <h3>Money</h3>
-          <table>
+          <table className="kv">
             <tbody>
               {p.charges ? (
                 <>
@@ -154,7 +157,7 @@ export default async function ReviewPage({
       {expense ? (
         <section className="card">
           <h3>Expense</h3>
-          <table>
+          <table className="kv">
             <tbody>
               <tr><td>Category</td><td>{EXPENSE_CATEGORIES[expense.category as keyof typeof EXPENSE_CATEGORIES] ?? "Other"}</td></tr>
               {expense.merchant ? <tr><td>Merchant</td><td>{expense.merchant}</td></tr> : null}

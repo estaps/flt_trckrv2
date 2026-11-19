@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { FlightInput } from "@/lib/schemas";
-import { ymd } from "@/lib/ui/format";
+import { money, tripDates, ymd } from "@/lib/ui/format";
+import { FlightPass } from "@/components/FlightPass";
 import { ExpensesSection } from "./expenses";
 import { PhotosSection } from "./photos";
 
@@ -63,51 +64,54 @@ export default async function TripPage({
   if (!trip) notFound();
   const home = getConfig().HOME_CURRENCY;
 
+  const spent = trip.expenses.reduce((sum, e) => sum + Number(e.amountHome ?? 0), 0);
+
   return (
     <>
-      <p><a href="/">All trips</a></p>
-      <section className="card">
-        <h2>{trip.name}</h2>
-        <p className="muted">{ymd(trip.startDate)}{trip.endDate ? ` to ${ymd(trip.endDate)}` : ""}</p>
+      <div className="crumb"><a href="/">All trips</a> / {trip.name}</div>
+      <div className="page-head">
+        <div>
+          <h2>{trip.name}</h2>
+          <p className="sub">{tripDates(trip.startDate, trip.endDate)}</p>
+        </div>
+        <div className="kpis">
+          <div><small>Flights</small><b>{trip.flights.length}</b></div>
+          <div><small>Spent</small><b>{money(spent, home)}</b></div>
+          <div><small>Photos</small><b>{trip.photos.length}</b></div>
+        </div>
+      </div>
+
+      <section id="flights">
+        <h3>Flights</h3>
         {trip.flights.length === 0 ? (
-          <p className="muted">No flights yet.</p>
+          <p className="empty">No flights yet. Add one below, or upload a confirmation and confirm it into this trip.</p>
         ) : (
-          <table>
-            <thead><tr><th>Date</th><th>Flight</th><th>Route</th><th>Departs</th><th>Arrives</th><th>Seat</th><th>Booking</th><th>Status</th></tr></thead>
-            <tbody>
-              {trip.flights.map((f) => (
-                <tr key={f.id}>
-                  <td>{ymd(f.depDate)}</td>
-                  <td>{f.carrier} {f.flightNumber}</td>
-                  <td>{f.depAirport} to {f.arrAirport}</td>
-                  <td>{f.depTimeLocal ?? ""}</td>
-                  <td>{f.arrTimeLocal ?? ""}</td>
-                  <td>{f.seat ?? ""}</td>
-                  <td>{f.booking ? `${f.booking.confirmationCode}${f.booking.status !== "ticketed" ? ` (${f.booking.status})` : ""}` : ""}</td>
-                  <td>{f.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="passes">
+            {trip.flights.map((f) => <FlightPass key={f.id} flight={f} />)}
+          </div>
         )}
       </section>
+
+      <details className="adder" id="add-flight" open={Boolean(flightError)}>
+        <summary>Add a flight</summary>
+        <div className="adder-body">
+          {flightError ? <p className="error">Flight not added. {flightError}</p> : null}
+          <form action={addFlight} className="inline">
+            <input type="hidden" name="tripId" value={trip.id} />
+            <label>Airline<input name="carrier" defaultValue="DL" size={3} required /></label>
+            <label>Number<input name="flightNumber" size={5} required /></label>
+            <label>From<input name="depAirport" size={4} required placeholder="ATL" /></label>
+            <label>To<input name="arrAirport" size={4} required placeholder="SEA" /></label>
+            <label>Date<input name="depDate" type="date" required /></label>
+            <label>Departs (local)<input name="depTimeLocal" type="time" /></label>
+            <label>Seat<input name="seat" size={4} /></label>
+            <button type="submit">Add flight</button>
+          </form>
+        </div>
+      </details>
+
       <ExpensesSection tripId={trip.id} expenses={trip.expenses} home={home} defaultDate={ymd(trip.startDate)} error={expenseError} />
       <PhotosSection tripId={trip.id} photos={trip.photos} flights={trip.flights} error={error} />
-      <section className="card" id="add-flight">
-        <h3>Add a flight</h3>
-        {flightError ? <p className="error">Flight not added. {flightError}</p> : null}
-        <form action={addFlight} className="inline">
-          <input type="hidden" name="tripId" value={trip.id} />
-          <label>Airline<input name="carrier" defaultValue="DL" size={3} required /></label>
-          <label>Number<input name="flightNumber" size={5} required /></label>
-          <label>From<input name="depAirport" size={4} required /></label>
-          <label>To<input name="arrAirport" size={4} required /></label>
-          <label>Date<input name="depDate" type="date" required /></label>
-          <label>Departs (local)<input name="depTimeLocal" type="time" /></label>
-          <label>Seat<input name="seat" size={4} /></label>
-          <button type="submit">Add flight</button>
-        </form>
-      </section>
     </>
   );
 }

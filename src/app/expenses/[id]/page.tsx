@@ -24,7 +24,7 @@ export default async function ExpensePage({
 
   return (
     <>
-      <p>{e.trip ? <a href={`/trips/${e.trip.id}`}>{e.trip.name}</a> : <a href="/">All trips</a>}</p>
+      <div className="crumb"><a href="/">All trips</a>{e.trip ? <> / <a href={`/trips/${e.trip.id}`}>{e.trip.name}</a></> : null} / Edit expense</div>
       <section className="card">
         <h2>Edit expense</h2>
         {error ? <p className="error">Not saved. {error}</p> : null}
@@ -49,9 +49,10 @@ export default async function ExpensePage({
         </form>
         <CurrencyList />
         {e.documentId ? <p><a href={`/api/documents/${e.documentId}/file`} target="_blank">View current receipt</a></p> : null}
+        <hr className="divider" style={{ margin: "16px 0" }} />
         <form action={removeExpense}>
           <input type="hidden" name="expenseId" value={e.id} />
-          <ConfirmButton message="Delete this expense?" className="secondary">Delete expense</ConfirmButton>
+          <ConfirmButton message="Delete this expense?" className="secondary danger">Delete expense</ConfirmButton>
         </form>
       </section>
     </>
